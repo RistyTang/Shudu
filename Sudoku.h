@@ -1,416 +1,542 @@
-#pragma once
 #include <iostream>
-#include <vector>
-#include <algorithm>
+#include <fstream>
+#include <cstdlib>
+#include <ctime>
+#include <cstring>
+#include <sstream>
+#include <string>
+#include <random>
+#include <set>
 
 using namespace std;
 
-class Sudoku {
-public:
-    static const int N = 9;
-    static const int ROWS = N;
-    static const int COLS = N;
-    static const int BOX_SIZE = 3;
-    static const int NUM_CELLS = ROWS * COLS;
-    static const int MIN_GIVENS = 26;
-    static const int MAX_GIVENS = 61;
+const int N = 9;
 
-    Sudoku();
-    Sudoku(const string& str);
-    //获取和设置数独游戏中指定单元格的值
-    int getCellValue(int row, int col) const;
-    void setCellValue(int row, int col, int value);
-    //判断数独游戏中指定单元格是否为固定单元格。
-    bool isCellFixed(int row, int col) const;
-    //是否已被解决
-    bool isSolved() const;
-    //是否可解
-    bool isSolvable() const;
-    //求解数独游戏
-    bool solve();
-    //是否有唯一解
-    bool uniqueSolution() const;
-    //数独游戏的状态转换为字符串
-    string toString() const;
-    //生成一个新的数独游戏
-    void generate(int givens, int level);
-    //在指定难度水平下，数独游戏中最少和最多的固定单元格数
-    static int getMinGivens(int level);
-    static int getMaxGivens(int level);
 
-private:
-    struct Cell {
-        int value;//值
-        bool fixed;//是否给出
-        Cell() : value(0), fixed(false) {}
-    };
-    Cell cells_[NUM_CELLS];
-    bool isFixed_[NUM_CELLS];//存储是否固定
-    int numFixed_;
-    int numSolutions_;
-    int numIterations_;
-    bool eliminate();
-    bool search();
-    static void shuffle(int array[], int size);
-    static bool isValid(const int values[], int size);
-    static bool isValid(const Cell cells[], int size);
-    static void getBoxIndices(int box, int indices[]);
-};
-int Sudoku::getMinGivens(int level)
+// 数独矩阵
+int matrix[N][N];
+int unique_matrix[N][N];
+
+// 打印数独矩阵
+void print_matrix() 
 {
-    switch (level) {
-    case 1: // 简单数独
-        return MIN_GIVENS + 10;
-    case 2: //中等数独        
-        return MIN_GIVENS + 20;
-    case 3: //困难数独
-        return MIN_GIVENS + 30;
-    default:
-        return MIN_GIVENS;
-    }
-}
-
-int Sudoku::getMaxGivens(int level)
-{
-    switch (level) {
-    case 1: // 简单数独
-        return MAX_GIVENS - 10;
-    case 2: // 中等数独   
-        return MAX_GIVENS - 20;
-    case 3: // 困难数独
-        return MAX_GIVENS - 30;
-    default:
-        return MAX_GIVENS;
-    }
-}
-
-Sudoku::Sudoku() {
-    for (int i = 0; i < NUM_CELLS; i++) {
-        cells_[i].value = 0;
-        cells_[i].fixed = false;
-        isFixed_[i] = false;
-    }
-    numFixed_ = 0;
-}
-
-Sudoku::Sudoku(const string& str) {
-    for (int i = 0; i < NUM_CELLS; i++) {
-        cells_[i].fixed = false;
-        isFixed_[i] = false;
-    }
-    numFixed_ = 0;
-    for (int i = 0; i < str.size(); i++) {
-        int row = i / COLS;
-        int col = i % COLS;
-        char ch = str[i];
-        if (ch >= '1' && ch <= '9') {
-            int value = ch - '0';
-            setCellValue(row, col, value);
-            isFixed_[row * COLS + col] = true;
+    for (int i = 0; i < N; i++) {
+        for (int j = 0; j < N; j++) {
+            cout << matrix[i][j] << " ";
         }
-        else {
-            setCellValue(row, col, 0);
-        }
+        cout << endl;
     }
 }
 
-int Sudoku::getCellValue(int row, int col) const {
-    return cells_[row * COLS + col].value;
-}
-
-void Sudoku::setCellValue(int row, int col, int value) {
-    cells_[row * COLS + col].value = value;
-}
-
-bool Sudoku::isCellFixed(int row, int col) const {
-    return isFixed_[row * COLS + col];
-}
-
-bool Sudoku::isSolved() const {
-    for (int i = 0; i < NUM_CELLS; i++) {
-        if (cells_[i].value == 0) {
+// 检查某个数字是否可以在该行中出现
+bool check_row(int row, int num) {
+    for (int i = 0; i < N; i++) {
+        if (matrix[row][i] == num) {
             return false;
         }
     }
-    return isValid(cells_, NUM_CELLS);
+    return true;
 }
 
-bool Sudoku::solve() {
-    numIterations_ = 0;
-    numSolutions_ = 0;
-    while (eliminate()) {}
-    if (!isValid(cells_, NUM_CELLS)) {
-        return false;
+// 检查某个数字是否可以在该列中出现
+bool check_col(int col, int num) {
+    for (int i = 0; i < N; i++) {
+        if (matrix[i][col] == num) {
+            return false;
+        }
     }
-    if (isSolved()) {
-        numSolutions_ = 1;
-        return true;
-    }
-    return search();
+    return true;
 }
 
-string Sudoku::toString() const {
-    ostringstream oss;
-    for (int i = 0; i < NUM_CELLS; i++) {
-        oss << cells_[i].value;
-        if (i % COLS == COLS - 1) {
-            oss << "\n";
-        }
-        else {
-            oss << " ";
-        }
-    }
-    return oss.str();
-}
-
-void Sudoku::generate(int givens, int level) {
-    vector<int> indices(NUM_CELLS);
-    for (int i = 0; i < NUM_CELLS; i++) {
-        indices[i] = i;
-    }
-    shuffle(&indices[0], indices.size());
-    for (int i = 0; i < NUM_CELLS; i++) {
-        int index = indices[i];
-        int row = index / COLS;
-        int col = index % COLS;
-        int value = getCellValue(row, col);
-        if (value == 0) {
-            continue;
-        }
-        setCellValue(row, col, 0);
-        if (!isSolvable() || !uniqueSolution() || numFixed_ > MAX_GIVENS) {
-            setCellValue(row, col, value);
-        }
-        else {
-            isFixed_[row * COLS + col] = true;
-            numFixed_++;
-            if (numFixed_ >= givens) {
-                break;
-            }
-        }
-    }
-}
-
-bool Sudoku::eliminate() {
-    bool changed = false;
-    for (int i = 0; i < NUM_CELLS; i++) {
-        if (cells_[i].value == 0) {
-            int row = i / COLS;
-            int col = i % COLS;
-            int values[N];
-            int numValues = 0;
-            for (int k = 1; k <= N; k++) {
-                bool found = false;
-                for (int j = 0; j < N; j++) {
-                    if (cells_[row * COLS + j].value == k ||
-                        cells_[j * COLS + col].value == k ||
-                        cells_[(row / BOX_SIZE * BOX_SIZE + j / BOX_SIZE) * COLS + col / BOX_SIZE * BOX_SIZE + j % BOX_SIZE].value == k) {
-                        found = true;
-                        break;
-                    }
-                }
-                if (!found) {
-                    values[numValues++] = k;
-                }
-            }
-            if (numValues == 1) {
-                setCellValue(row, col, values[0]);
-                changed = true;
-            }
-        }
-    }
-    numIterations_++;
-    return changed;
-}
-
-bool Sudoku::search() {
-    int index = -1;
-    int minNumValues = N + 1;
-    for (int i = 0; i < NUM_CELLS; i++) {
-        if (cells_[i].value == 0) {
-            int row = i / COLS;
-            int col = i % COLS;
-            int values[N];
-            int numValues = 0;
-            for (int k = 1; k <= N; k++) {
-                bool found = false;
-                for (int j = 0; j < N; j++) {
-                    if (cells_[row * COLS + j].value == k ||
-                        cells_[j * COLS + col].value == k ||
-                        cells_[(row / BOX_SIZE * BOX_SIZE + j / BOX_SIZE) * COLS + col / BOX_SIZE * BOX_SIZE + j % BOX_SIZE].value == k) {
-                        found = true;
-                        break;
-                    }
-                }
-                if (!found) {
-                    values[numValues++] = k;
-                }
-            }
-            if (numValues == 0) {
+// 检查某个数字是否可以在该宫格中出现
+bool check_box(int row, int col, int num) {
+    int box_start_row = row - row % 3;
+    int box_start_col = col - col % 3;
+    for (int i = box_start_row; i < box_start_row + 3; i++) {
+        for (int j = box_start_col; j < box_start_col + 3; j++) {
+            if (matrix[i][j] == num) {
                 return false;
             }
-            else if (numValues < minNumValues) {
-                index = i;
-                minNumValues = numValues;
-            }
         }
     }
-    if (index == -1) {
-        numSolutions_++;
+    return true;
+}
+
+// 检查某个数字是否可以在该位置（行、列、宫格）中出现
+bool check_num(int row, int col, int num) {
+    return check_row(row, num) && check_col(col, num) && check_box(row, col, num);
+}
+
+// 递归求解数独问题
+bool solve_sudoku(int row, int col) 
+{
+    if (row == N) {
         return true;
     }
-    int row = index / COLS;
-    int col = index % COLS;
-    int values[N];
-    int numValues = 0;
-    for (int k = 1; k <= N; k++) {
-        bool found = false;
-        for (int j = 0; j < N; j++) {
-            if (cells_[row * COLS + j].value == k ||
-                cells_[j * COLS + col].value == k ||
-                cells_[(row / BOX_SIZE * BOX_SIZE + j / BOX_SIZE) * COLS + col / BOX_SIZE * BOX_SIZE + j % BOX_SIZE].value == k) {
-                found = true;
-                break;
-            }
-        }
-        if (!found) {
-            values[numValues++] = k;
-        }
+    if (col == N) {
+        return solve_sudoku(row + 1, 0);
     }
-    shuffle(values, numValues);
-    for (int i = 0; i < numValues; i++) {
-        setCellValue(row, col, values[i]);
-        if (search()) {
-            return true;
+    if (matrix[row][col] != 0) {
+        return solve_sudoku(row, col + 1);
+    }
+    for (int i = 1; i <= 9; i++) {
+        if (check_num(row, col, i)) {
+            matrix[row][col] = i;
+            if (solve_sudoku(row, col + 1)) {
+                return true;
+            }
+            matrix[row][col] = 0;
         }
-        setCellValue(row, col, 0);
     }
     return false;
 }
 
-bool Sudoku::isSolvable() const 
+//具有唯一解数组求解
+bool only_solve_sudoku(int row, int col,int& count)
 {
-    Sudoku copy(*this);
-    bool changed = true;
-    while (changed) {
-        changed = false;
-        for (int i = 0; i < NUM_CELLS; i++) {
-            if (copy.cells_[i].value == 0) {
-                int row = i / COLS;
-                int col = i % COLS;
-                int values[N];
-                int numValues = 0;
-                for (int k = 1; k <= N; k++) {
-                    bool found = false;
-                    for (int j = 0; j < N; j++) {
-                        if (copy.cells_[row * COLS + j].value == k ||
-                            copy.cells_[j * COLS + col].value == k ||
-                            copy.cells_[(row / BOX_SIZE * BOX_SIZE + j / BOX_SIZE) * COLS + col / BOX_SIZE * BOX_SIZE + j % BOX_SIZE].value == k) {
-                            found = true;
-                            break;
-                        }
-                    }
-                    if (!found) {
-                        values[numValues++] = k;
-                    }
-                }
-                if (numValues == 0) {
-                    return false;
-                }
-                else if (numValues == 1) {
-                    copy.setCellValue(row, col, values[0]);
-                    changed = true;
-                }
+    if (row == N) {
+        count++; // 找到一个解，计数器递增
+        return true;
+    }
+    if (col == N) {
+        return only_solve_sudoku(row + 1, 0,count);
+    }
+    if (matrix[row][col] != 0) {
+        return only_solve_sudoku(row, col + 1,count);
+    }
+    for (int i = 1; i <= 9; i++) 
+    {
+        if (check_num(row, col, i)) {
+            matrix[row][col] = i;
+            if (only_solve_sudoku(row, col + 1,count)) {
+                // 如果找到一个解，则继续搜索其他解
+                // 不需要返回 true，因为还需要继续搜索其他解
+                matrix[row][col] = 0;
             }
         }
     }
-    return true;
+    return false;
 }
 
-bool Sudoku::uniqueSolution() const 
+// 生成数独终局
+void generate_sudoku_endgames(int num)
 {
-    Sudoku copy(*this);
-    copy.search();
-    return copy.numSolutions_ == 1;
-}
-
-void Sudoku::shuffle(int array[], int size) {
-    for (int i = 0; i < size; i++) {
-        int j = rand() % (size - 1);
-        int temp = array[i];
-        array[i] = array[j];
-        array[j] = temp;
+    if (num < 1 || num >= 1000000)
+    {
+        cout << "输入局数不合法" << endl;
+        return;
     }
-}
-
-bool Sudoku::isValid(const int values[], int size) {
-    bool used[N] = { false };
-    for (int i = 0; i < size; i++) {
-        int val = values[i];
-        if (val == 0) continue;
-        if (used[val]) return false;
-        used[val] = true;
-    }
-    return true;
-}
-
-bool Sudoku::isValid(const Cell cells[], int size) {
-    bool used[N] = { false };
-    for (int i = 0; i < size; i++) {
-        Cell cell = cells[i];
-        int val = cell.value;
-        if (val == 0 && !cell.fixed) continue;
-        if (used[val]) return false;
-        used[val] = true;
-    }
-    return true;
-}
-
-void Sudoku::getBoxIndices(int box, int indices[])
-{
-    int rowStart, colStart;
-    switch (box) {
-    case 0:
-        rowStart = colStart = 0;
-        break;
-    case 1:
-        rowStart = 0;
-        colStart = 3;
-        break;
-    case 2:
-        rowStart = 0;
-        colStart = 6;
-        break;
-    case 3:
-        rowStart = 3;
-        colStart = 0;
-        break;
-    case 4:
-        rowStart = 3;
-        colStart = 3;
-        break;
-    case 5:
-        rowStart = 3;
-        colStart = 6;
-        break;
-    case 6:
-        rowStart = 6;
-        colStart = 0;
-        break;
-    case 7:
-        rowStart = 6;
-        colStart = 3;
-        break;
-    case 8:
-        rowStart = 6;
-        colStart = 6;
-        break;
-    }
-
-    int k = 0;
-    for (int i = rowStart; i < rowStart + BOX_SIZE; i++) {
-        for (int j = colStart; j < colStart + BOX_SIZE; j++) {
-            indices[k++] = i * COLS + j;
+    int endgames[1000][9][9];
+    for (int cur = 0;cur < num;cur++)
+    {
+        srand(time(NULL)+cur);
+        // 随机填充第一行
+        for (int i = 0; i < N; i++)
+        {
+            matrix[0][i] = i + 1;
+        }
+        for (int i = 0; i < N; i++)
+        {
+            int random_index = rand() % N;
+            swap(matrix[0][i], matrix[0][random_index]);
+        }
+        // 递归填充数独矩阵
+        solve_sudoku(0, 0);
+        //存储到终局中
+        for (int i = 0;i < N;i++)
+        {
+            for (int j = 0;j < N;j++)
+            {
+                endgames[cur][i][j] = matrix[i][j];
+            }
         }
     }
+    // 将数独终局写入文件
+    ofstream fout("EndGames.txt");
+    if (!fout.is_open()) {
+        cout << "Error: cannot open file EndGames.txt" << endl;
+        return;
+    }
+    for (int cur = 0;cur < num;cur++)
+    {
+        fout << "EndGame" << cur + 1 << endl;
+        for (int i = 0; i < N; i++)
+        {
+            for (int j = 0; j < N; j++) {
+                fout << endgames[cur][i][j] << " ";
+            }
+            fout << endl;
+        }
+    }
+    fout.close();
+    cout << "Successfully wrote sudoku to file EndGames.txt" << endl;
+}
+
+//生成数独游戏--普通版
+void generate_sudoku_games(int num)
+{
+    //合法性判断
+    if (num < 1 || num>10000)
+    {
+        cout << "生成数独游戏数目不合法" << endl;
+        return;
+    }
+    string filepath;
+    for (int cur = 0;cur < num;cur++)
+    {
+        srand(time(NULL)+cur);
+        // 随机填充第一行
+        for (int i = 0; i < N; i++)
+        {
+            matrix[0][i] = i + 1;
+        }
+        for (int i = 0; i < N; i++)
+        {
+            int random_index = rand() % N;
+            swap(matrix[0][i], matrix[0][random_index]);
+        }
+        // 递归填充数独矩阵
+        solve_sudoku(0, 0);
+        // 随机挖去部分数字
+        int holes = rand() % 10 + 41; // 挖去41~50个数字
+        set<pair<int, int>> hole_set; // 记录已经挖过的洞的位置
+        while (holes > 0) {
+            int row = rand() % N;
+            int col = rand() % N;
+            if (hole_set.find({ row, col }) == hole_set.end()) {
+                hole_set.insert({ row, col }); // 将位置加入集合
+                matrix[row][col] = 0; // 挖掉这个位置
+                holes--; // 洞数减 1
+            }
+        }
+        stringstream ss;
+        ss << cur + 1; // 将整数类型的变量 cur 转换为字符串
+        //存储到不同文件中
+        filepath = "SudokuGames" + ss.str() + ".txt";
+        ofstream fout(filepath);
+        if (!fout.is_open()) {
+            cout << "Error: cannot open file SudokuGames.txt" << endl;
+            return;
+        }
+        char temp;
+        for (int i = 0; i < N; i++)
+        {
+            for (int j = 0; j < N; j++) {
+                if (matrix[i][j] == 0)
+                {
+                    temp = '$';
+                    fout << temp << " ";
+                }
+                else
+                {
+                    fout << matrix[i][j] << " ";
+                }
+            }
+            fout << endl;
+        }
+        fout.close();
+        cout << "Successfully wrote sudoku to file" <<filepath <<endl;
+    }
+
+}
+
+//生成数独游戏--带难度值
+//1简单有 30 - 40 个空;2中等有 40 - 50 个空;困难有 50 - 60 个空
+void generate_sudoku_games_difficulty(int num, int difficulty)
+{
+    //合法性判断
+    if (num < 1 || num>10000)
+    {
+        cout << "生成数独游戏数目不合法" << endl;
+        return;
+    }
+    int base;
+    if (difficulty == 1)
+    {
+        base = 30;
+    }
+    else if(difficulty == 2)
+    {
+        base = 40;
+    }
+    else
+    {
+        base = 50;
+    }
+    string filepath;
+    for (int cur = 0;cur < num;cur++)
+    {
+        srand(time(NULL) + cur);
+        // 随机填充第一行
+        for (int i = 0; i < N; i++)
+        {
+            matrix[0][i] = i + 1;
+        }
+        for (int i = 0; i < N; i++)
+        {
+            int random_index = rand() % N;
+            swap(matrix[0][i], matrix[0][random_index]);
+        }
+        // 递归填充数独矩阵
+        solve_sudoku(0, 0);
+        // 随机挖去部分数字
+        int holes = rand() % 10 + base; // 挖去数字数目随机
+        set<pair<int, int>> hole_set; // 记录已经挖过的洞的位置
+        while (holes > 0) {
+            int row = rand() % N;
+            int col = rand() % N;
+            if (hole_set.find({ row, col }) == hole_set.end()) {
+                hole_set.insert({ row, col }); // 将位置加入集合
+                matrix[row][col] = 0; // 挖掉这个位置
+                holes--; // 洞数减 1
+            }
+        }
+        stringstream ss;
+        ss << cur + 1; // 将整数类型的变量 cur 转换为字符串
+        //存储到不同文件中
+        filepath = "SudokuGamesWithDifficulty" + ss.str() + ".txt";
+        ofstream fout(filepath);
+        if (!fout.is_open()) {
+            cout << "Error: cannot open file SudokuGames.txt" << endl;
+            return;
+        }
+        char temp;
+        for (int i = 0; i < N; i++)
+        {
+            for (int j = 0; j < N; j++) {
+                if (matrix[i][j] == 0)
+                {
+                    temp = '$';
+                    fout << temp << " ";
+                }
+                else
+                {
+                    fout << matrix[i][j] << " ";
+                }
+            }
+            fout << endl;
+        }
+        fout.close();
+        cout << "Successfully wrote sudoku to file" << filepath << endl;
+    }
+}
+
+//生成数独游戏--带空格指定
+void generate_sudoku_games_blanks(int num, int min_blanks, int max_blanks)
+{
+    //合法性判断
+    if (num < 1 || num>10000)
+    {
+        cout << "生成数独游戏数目不合法" << endl;
+        return;
+    }
+    // 使用默认的随机数生成器和均匀分布函数
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> dis(min_blanks, max_blanks);//限定范围
+    string filepath;
+    for (int cur = 0;cur < num;cur++)
+    {
+        srand(time(NULL) + cur);
+        // 随机填充第一行
+        for (int i = 0; i < N; i++)
+        {
+            matrix[0][i] = i + 1;
+        }
+        for (int i = 0; i < N; i++)
+        {
+            int random_index = rand() % N;
+            swap(matrix[0][i], matrix[0][random_index]);
+        }
+        // 递归填充数独矩阵
+        solve_sudoku(0, 0);
+        // 随机挖去部分数字
+        int holes = dis(gen); // 挖去数字数目随机
+        set<pair<int, int>> hole_set; // 记录已经挖过的洞的位置
+        while (holes > 0) {
+            int row = rand() % N;
+            int col = rand() % N;
+            if (hole_set.find({ row, col }) == hole_set.end()) {
+                hole_set.insert({ row, col }); // 将位置加入集合
+                matrix[row][col] = 0; // 挖掉这个位置
+                holes--; // 洞数减 1
+            }
+        }
+        stringstream ss;
+        ss << cur + 1; // 将整数类型的变量 cur 转换为字符串
+        //存储到不同文件中
+        filepath = "SudokuGamesWithBlanks" + ss.str() + ".txt";
+        ofstream fout(filepath);
+        if (!fout.is_open()) {
+            cout << "Error: cannot open file SudokuGames.txt" << endl;
+            return;
+        }
+        char temp;
+        for (int i = 0; i < N; i++)
+        {
+            for (int j = 0; j < N; j++) {
+                if (matrix[i][j] == 0)
+                {
+                    temp = '$';
+                    fout << temp << " ";
+                }
+                else
+                {
+                    fout << matrix[i][j] << " ";
+                }
+            }
+            fout << endl;
+        }
+        fout.close();
+        cout << "Successfully wrote sudoku to file" << filepath << endl;
+    }
+}
+
+
+
+//生成数独游戏--唯一解
+void generate_sudoku_unique(int cur)
+{
+    string filepath;
+    srand(time(NULL) + cur);
+    // 随机填充第一行
+    for (int i = 0; i < N; i++)
+    {
+        matrix[0][i] = i + 1;
+    }
+    for (int i = 0; i < N; i++)
+    {
+        int random_index = rand() % N;
+        swap(matrix[0][i], matrix[0][random_index]);
+    }
+    // 递归填充数独矩阵
+    solve_sudoku(0, 0);
+    //记录当前矩阵
+    memcpy(unique_matrix, matrix, sizeof(matrix));
+    int dig_times = 0;//挖取次数尝试上限
+    set<pair<int, int>> hole_set; // 记录已经挖过的洞的位置
+    while (hole_set.size() <= 25)
+    {
+        dig_times++;
+        //cout << "dig times=" << dig_times << endl;
+        //记录当前矩阵
+        memcpy(matrix, unique_matrix, sizeof(matrix));
+        //随机挖空
+        srand(time(NULL) + cur);
+        int row = rand() % N;
+        int col = rand() % N;
+        if (hole_set.find({ row, col }) == hole_set.end())
+        {
+            hole_set.insert({ row, col }); // 将位置加入集合
+            matrix[row][col] = 0; // 挖掉这个位置
+            int count = 0;
+            only_solve_sudoku(0, 0, count);
+            if (count == 1)//有唯一解则挖掉这个位置
+            {
+                unique_matrix[row][col] = 0;
+                cout << "dig(" << row << "," << col << ")" << endl;
+                if (hole_set.size() >= 40)
+                {
+                    break;
+                }
+            }
+            else if (count == 0)
+            {
+                break;
+            }
+        }
+    }
+    stringstream ss;
+    ss << cur + 1; // 将整数类型的变量 cur 转换为字符串
+    //存储到不同文件中
+    filepath = "UniqueSudokuGames" + ss.str() + ".txt";
+    ofstream fout(filepath);
+    if (!fout.is_open())
+    {
+        cout << "Error: cannot open file UniqueSudokuGames.txt" << endl;
+        return;
+    }
+    char temp;
+    for (int i = 0; i < N; i++)
+    {
+        for (int j = 0; j < N; j++) {
+            if (unique_matrix[i][j] == 0)
+            {
+                temp = '$';
+                fout << temp << " ";
+            }
+            else
+            {
+                fout << unique_matrix[i][j] << " ";
+            }
+        }
+        fout << endl;
+    }
+    fout.close();
+    cout << "Successfully wrote sudoku to file " << filepath << endl;
+}
+
+void generate_sudoku_uniques(int num)
+{
+    //合法性判断
+    if (num < 1 || num>10000)
+    {
+        cout << "生成数独游戏数目不合法" << endl;
+        return;
+    }
+    for (int i = 0;i < num;i++)
+    {
+        memset(matrix, 0, sizeof(matrix));
+        cout << "start to generate unique sudoku" << i + 1 << endl;
+        generate_sudoku_unique(i);
+    }
+}
+
+
+
+// 从文件中读取数独问题
+void read_sudoku_from_file(const char* filename) 
+{
+    ifstream fin(filename);
+    if (!fin.is_open()) {
+        cout << "Error: cannot open file " << filename << endl;
+        return;
+    }
+    memset(matrix, 0, sizeof(matrix));
+    char temp;
+    for (int i = 0; i < N; i++) {
+        for (int j = 0; j < N; j++) {
+            fin >> temp;
+            if (temp == '$')
+            {
+                temp = '0';
+            }
+            temp = temp - '0';
+            matrix[i][j] = temp;
+        }
+    }
+    fin.close();
+    cout << "Successfully read sudoku from file " << filename << endl;
+}
+
+// 将数独解写入文件
+void write_solution_to_file(const char* filename) {
+    ofstream fout(filename);
+    if (!fout.is_open()) {
+        cout << "Error: cannot open file " << filename << endl;
+        return;
+    }
+    if (solve_sudoku(0, 0)) {
+        for (int i = 0; i < N; i++) {
+            for (int j = 0; j < N; j++) {
+                fout << matrix[i][j] << " ";
+            }
+            fout << endl;
+        }
+        cout << "Successfully wrote solution to file " << filename << endl;
+    }
+    else {
+        cout << "Error: cannot solve the sudoku problem" << endl;
+    }
+    fout.close();
 }
