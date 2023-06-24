@@ -1,172 +1,135 @@
 #include <iostream>
 #include <fstream>
-#include <sstream>
 #include <string>
 #include <vector>
-#include <cstdlib>
-#include <ctime>
+#include <random>
+#include <algorithm>
 #include "Sudoku.h"
 
 using namespace std;
 
-// 打印使用说明
-void printUsage() {
-    cout << "Usage: Sudoku.exe [options]" << endl;
+void usage() {
+    cout << "Usage:" << endl;
+    cout << "  Sudoku.exe -c COUNT      : Generate COUNT Sudoku games and save to file" << endl;
+    cout << "  Sudoku.exe -s FILENAME   : Solve Sudoku games in FILENAME and save to file" << endl;
+    cout << "  Sudoku.exe -n COUNT [OPTIONS] : Generate COUNT Sudoku games and save to file" << endl;
     cout << "Options:" << endl;
-    cout << "  -c <num>       generate <num> sudoku puzzles" << endl;
-    cout << "  -s <file>      solve sudoku puzzles in <file>" << endl;
-    cout << "  -n <num>       generate <num> sudoku games" << endl;
-    cout << "  -m <level>     specify difficulty level of generated games (1=easy, 2=medium, 3=hard)" << endl;
-    cout << "  -r <min> <max> specify range of numbers of blanks in generated games" << endl;
-    cout << "  -u             ensure unique solution for generated games" << endl;
+    cout << "  -m LEVEL   : Set difficulty level (1: Easy, 2: Medium, 3: Hard)" << endl;
+    cout << "  -r MIN MAX : Set number of blank cells (MIN <= # of blanks <= MAX)" << endl;
+    cout << "  -u         : Generate Sudoku games with unique solution" << endl;
 }
 
-// 生成数独游戏
-void generateGames(int num, int level, int min_givens, int max_givens, bool unique) {
-    Sudoku sudoku;
-    int givens = min_givens;
-    int total = 0;
-    while (total < num) {
-        if (givens > max_givens) {
-            cout << "Cannot generate enough games with specified range of blanks." << endl;
-            break;
-        }
-        sudoku.generate(givens, level);
-        if (!unique || sudoku.uniqueSolution()) {
-            cout << sudoku.toString() << endl;
-            total++;
-        }
-        givens++;
-    }
-}
-
-// 从文件中读取数独游戏并求解
-void solveGames(const string& filename) {
-    ifstream infile(filename);
-    if (!infile) {
-        cout << "Error: cannot open file " << filename << "." << endl;
-        return;
-    }
-    string line;
-    while (getline(infile, line)) {
-        Sudoku sudoku(line);
-        cout << "Puzzle: " << endl << sudoku.toString() << endl;
-        if (sudoku.solve()) {
-            cout << "Solution: " << endl << sudoku.toString() << endl;
-        }
-        else {
-            cout << "No solution found." << endl;
-        }
-    }
-}
-
-// 主函数
 int main(int argc, char* argv[]) {
-    // 解析命令行参数
-    int num = 0;
-    int level = 0;
-    int min_givens = 0;
-    int max_givens = 0;
-    bool unique = false;
+    //非法输入
+    if (argc <= 1) {
+        usage();
+        return 0;
+    }
+
+    // Parse command line arguments
+    int count = 0;
     string filename;
-    cout << "argc=" << argc << endl;
+    int difficulty = 0;
+    int min_blanks = 0;
+    int max_blanks = 0;
+    bool unique_solution = false;
     for (int i = 1; i < argc; i++) 
     {
         string arg = argv[i];
-        cout << arg << endl;
-        if (arg == "-c") {
+        if (arg == "-c") 
+        {
             i++;
-            cout << "i=" << i << endl;
-            if (i > argc) {
-                printUsage();
+            if (i > argc) 
+            {
+                cout << "未输入生成终局数量" << endl;
+                usage();
                 return 1;
             }
-            num = stoi(argv[i]);
+            int num = stoi(argv[i]);
+            generate_sudoku_endgames(num);
         }
-        else if (arg == "-s") {
+        else if (arg == "-s") 
+        {
             i++;
-            if (i >= argc) {
-                printUsage();
+            if (i >= argc) 
+            {
+                cout << "未输入求解文件名称" << endl;
+                usage();
                 return 1;
             }
             filename = argv[i];
+            solve_sudoku(0, 0);
+            read_sudoku_from_file(filename.c_str());
+            write_solution_to_file("Solution.txt");
         }
-        else if (arg == "-n") {
+        else if (arg == "-n") 
+        {
             i++;
-            if (i >= argc) {
-                printUsage();
+            if (i >= argc) 
+            {
+                cout << "未输入生成数独游戏数量" << endl;
+                usage();
                 return 1;
             }
-            num = stoi(argv[i]);
-        }
-        else if (arg == "-m") {
-            i++;
-            if (i >= argc) {
-                printUsage();
-                return 1;
+            int num = stoi(argv[i]);
+            //i++;
+            if (i + 1 < argc && argv[i + 1][0] == '-')
+            {
+                string option = argv[i + 1];
+                if (option == "-m")
+                {
+                    if (i + 2 >= argc)
+                    {
+                        cout << "请指明生成游戏难度：" << endl;
+                        usage();
+                        return 1;
+                    }
+                    difficulty = stoi(argv[i + 2]);
+                    if (difficulty < 1 || difficulty > 3) {
+                        cout << "难度取值必须为1、2或3" << endl;
+                        usage();
+                        return 1;
+                    }
+                    generate_sudoku_games_difficulty(num, difficulty);
+                    i += 2;
+                }
+                else if (option == "-r") {
+                    if (i + 3 >= argc) {
+                        cout << "请指明挖空区间" << endl;
+                        usage();
+                        return 1;
+                    }
+                    min_blanks = stoi(argv[i + 2]);
+                    max_blanks = stoi(argv[i + 3]);
+                    if (min_blanks < 20 || max_blanks < min_blanks || max_blanks > 55) {
+                        cout << "输入区间不合法：0<min<=max<=81" << endl;
+                        usage();
+                        return 1;
+                    }
+                    generate_sudoku_games_blanks(num, min_blanks, max_blanks);
+                    i += 3;
+                }
+                else if (option == "-u") {
+                    unique_solution = true;
+                    i += 1;
+                    generate_sudoku_uniques(num);
+                }
+                else {
+                    cout << "输入错误" << option << endl;
+                    usage();
+                    return 1;
+                }
             }
-            level = stoi(argv[i]);
-        }
-        else if (arg == "-r") {
-            i++;
-            if (i >= argc) {
-                printUsage();
-                return 1;
+            else
+            {
+                generate_sudoku_games(num);
             }
-            min_givens = stoi(argv[i]);
-            i++;
-            if (i >= argc) {
-                printUsage();
-                return 1;
-            }
-            max_givens = stoi(argv[i]);
-        }
-        else if (arg == "-u") {
-            unique = true;
         }
         else {
-            printUsage();
-            return 1;
-        }
-        if (level == 0)
-        {
-            level = 1;
-        }
-    }
-    cout << "here" << endl;
-    // 根据参数执行相应的操作
-    srand(time(nullptr));
-    if (num > 0) {
-        if (filename.empty()) 
-        {
-            if (level > 0) {
-                int min_givens = Sudoku::getMinGivens(level);
-                int max_givens = Sudoku::getMaxGivens(level);
-                generateGames(num, level, min_givens, max_givens, unique);
-            }
-            else if (min_givens > 0 && max_givens > 0) {
-                generateGames(num, 0, min_givens, max_givens, unique);
-            }
-            else {
-                cout << "Error: missing required argument." << endl;
-                printUsage();
-                return 1;
-            }
-        }
-        else {
-            cout << "Error: invalid combination of options." << endl;
-            printUsage();
+            cout << "Error: Unknown command " << arg << endl;
+            usage();
             return 1;
         }
     }
-    else if (!filename.empty()) {
-        solveGames(filename);
-    }
-    else {
-        cout << "Error: missing required argument." << endl;
-        printUsage();
-        return 1;
-    }
-
     return 0;
 }
