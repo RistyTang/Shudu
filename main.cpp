@@ -20,7 +20,7 @@ void usage() {
 }
 
 int main(int argc, char* argv[]) {
-    //éæ³•è¾“å…¥
+    //·Ç·¨ÊäÈë
     if (argc <= 1) {
         usage();
         return 0;
@@ -33,27 +33,27 @@ int main(int argc, char* argv[]) {
     int min_blanks = 0;
     int max_blanks = 0;
     bool unique_solution = false;
-    for (int i = 1; i < argc; i++) 
+    for (int i = 1; i < argc; i++)
     {
         string arg = argv[i];
-        if (arg == "-c") 
+        if (arg == "-c")
         {
             i++;
-            if (i > argc) 
+            if (i > argc)
             {
-                cout << "æœªè¾“å…¥ç”Ÿæˆç»ˆå±€æ•°é‡" << endl;
+                cout << "Î´ÊäÈëÉú³ÉÖÕ¾ÖÊıÁ¿" << endl;
                 usage();
                 return 1;
             }
             int num = stoi(argv[i]);
             generate_sudoku_endgames(num);
         }
-        else if (arg == "-s") 
+        else if (arg == "-s")
         {
             i++;
-            if (i >= argc) 
+            if (i >= argc)
             {
-                cout << "æœªè¾“å…¥æ±‚è§£æ–‡ä»¶åç§°" << endl;
+                cout << "Î´ÊäÈëÇó½âÎÄ¼şÃû³Æ" << endl;
                 usage();
                 return 1;
             }
@@ -62,12 +62,12 @@ int main(int argc, char* argv[]) {
             read_sudoku_from_file(filename.c_str());
             write_solution_to_file("Solution.txt");
         }
-        else if (arg == "-n") 
+        else if (arg == "-n")
         {
             i++;
-            if (i >= argc) 
+            if (i >= argc)
             {
-                cout << "æœªè¾“å…¥ç”Ÿæˆæ•°ç‹¬æ¸¸æˆæ•°é‡" << endl;
+                cout << "Î´ÊäÈëÉú³ÉÊı¶ÀÓÎÏ·ÊıÁ¿" << endl;
                 usage();
                 return 1;
             }
@@ -80,13 +80,13 @@ int main(int argc, char* argv[]) {
                 {
                     if (i + 2 >= argc)
                     {
-                        cout << "è¯·æŒ‡æ˜ç”Ÿæˆæ¸¸æˆéš¾åº¦ï¼š" << endl;
+                        cout << "ÇëÖ¸Ã÷Éú³ÉÓÎÏ·ÄÑ¶È£º" << endl;
                         usage();
                         return 1;
                     }
                     difficulty = stoi(argv[i + 2]);
                     if (difficulty < 1 || difficulty > 3) {
-                        cout << "éš¾åº¦å–å€¼å¿…é¡»ä¸º1ã€2æˆ–3" << endl;
+                        cout << "ÄÑ¶ÈÈ¡Öµ±ØĞëÎª1¡¢2»ò3" << endl;
                         usage();
                         return 1;
                     }
@@ -95,14 +95,14 @@ int main(int argc, char* argv[]) {
                 }
                 else if (option == "-r") {
                     if (i + 3 >= argc) {
-                        cout << "è¯·æŒ‡æ˜æŒ–ç©ºåŒºé—´" << endl;
+                        cout << "ÇëÖ¸Ã÷ÍÚ¿ÕÇø¼ä" << endl;
                         usage();
                         return 1;
                     }
                     min_blanks = stoi(argv[i + 2]);
                     max_blanks = stoi(argv[i + 3]);
                     if (min_blanks < 20 || max_blanks < min_blanks || max_blanks > 55) {
-                        cout << "è¾“å…¥åŒºé—´ä¸åˆæ³•ï¼š0<min<=max<=81" << endl;
+                        cout << "ÊäÈëÇø¼ä²»ºÏ·¨£º0<min<=max<=81" << endl;
                         usage();
                         return 1;
                     }
@@ -115,7 +115,7 @@ int main(int argc, char* argv[]) {
                     generate_sudoku_uniques(num);
                 }
                 else {
-                    cout << "è¾“å…¥é”™è¯¯" << option << endl;
+                    cout << "ÊäÈë´íÎó" << option << endl;
                     usage();
                     return 1;
                 }
